@@ -1,0 +1,34 @@
+name: LinkedIn Job Alert
+
+on:
+  schedule:
+    # Every day at 9:00 AM KST (00:00 UTC)
+    - cron: "0 0 * * *"
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  check-jobs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run job checker
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python main.py
+
+      - name: Commit updated seen_jobs.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add seen_jobs.json
+          git diff --cached --quiet || git commit -m "Update seen jobs [skip ci]"
+          git push

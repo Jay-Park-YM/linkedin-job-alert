@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>디즈니랜드 하루 동선 맵 — 11시 입장</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --lawn:#C6D9A6; --park:#AECB8E;
+    --water:#8BBFD3; --path:#EBDDBA;
+    --ink:#33404E; --chip:#2E4066; --gold:#F2B705;
+    --fanta:#F3C6D0; --tomo:#B7D2E9; --front:#E5C28F;
+    --toon:#F8E282; --nos:#CDB5D8; --adv:#9DC79C; --galaxy:#C2BAAC;
+    --rail:#6B5D4F;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Gowun Dodum',sans-serif; background:#F6EFDD; color:var(--ink); line-height:1.55;}
+  header{text-align:center; padding:26px 16px 10px;}
+  header h1{font-family:'Jua',sans-serif; font-size:clamp(24px,6vw,34px); letter-spacing:.5px;}
+  header .sub{font-size:14px; margin-top:6px; opacity:.75;}
+  .badge-row{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:12px;}
+  .badge{font-size:12px; background:#fff; border:1.5px solid var(--ink); border-radius:999px; padding:4px 12px;}
+  .map-wrap{max-width:760px; margin:14px auto 6px; padding:0 10px;}
+  svg{width:100%; height:auto; display:block; border-radius:18px;}
+  .legend{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; font-size:13px; padding:10px 16px 4px;}
+  .legend span{display:inline-flex; align-items:center; gap:5px}
+  .dot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1.5px solid var(--ink)}
+  .dot.ll{background:var(--gold)}
+  .dot.sb{background:#fff}
+  .dot.eat{background:#F09A8D}
+  .dot.show{background:var(--chip)}
+  .rail-key{width:22px;height:0;border-top:4px solid var(--rail);position:relative;display:inline-block}
+  .rail-key.mono{border-top-color:#4A6B8C}
+
+  #route,.walk{stroke-dasharray:6 7;}
+  #route{animation:march 60s linear infinite;}
+  @keyframes march{to{stroke-dashoffset:-1300}}
+  @media (prefers-reduced-motion:reduce){ #route{animation:none} }
+
+  .stop{cursor:pointer}
+  .stop circle.core{transition:transform .2s; transform-box:fill-box; transform-origin:center}
+  .stop.active circle.core{transform:scale(1.35)}
+  .stop.active .halo{opacity:1}
+  .halo{opacity:0; transition:opacity .2s}
+
+  .timeline{max-width:760px; margin:10px auto 60px; padding:0 16px;}
+  .tl-title{font-family:'Jua',sans-serif; font-size:20px; margin:18px 0 12px; text-align:center;}
+  .card{
+    background:#fff; border:1.5px solid rgba(51,64,78,.25);
+    border-radius:14px; padding:12px 14px; margin-bottom:10px;
+    display:flex; gap:12px; align-items:flex-start;
+    transition:border-color .2s, box-shadow .2s; scroll-margin-top:14px;
+  }
+  .card.active{border-color:var(--chip); box-shadow:0 3px 0 var(--chip);}
+  .num{
+    flex:none; width:34px; height:34px; border-radius:50%;
+    background:var(--chip); color:#fff; font-family:'Jua',sans-serif;
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+    border:2px solid #fff; outline:1.5px solid var(--chip);
+  }
+  .card.ll .num{background:var(--gold); color:var(--ink); outline-color:var(--gold)}
+  .card.eat .num{background:#F09A8D; color:var(--ink); outline-color:#F09A8D}
+  .card .body{flex:1}
+  .card .time{font-family:'Jua',sans-serif; font-size:15px; color:var(--chip);}
+  .card h3{font-size:16px; margin:2px 0 3px; font-family:'Jua',sans-serif; font-weight:400}
+  .card p{font-size:13.5px; opacity:.85}
+  .tag{display:inline-block; font-size:11px; border-radius:6px; padding:1px 7px; margin-left:6px; vertical-align:1px; border:1px solid rgba(51,64,78,.35);}
+  .tag.ll{background:#FDF0C6; border-color:var(--gold)}
+  .tag.sb{background:#F1F1F1}
+  .tag.eat{background:#FBE1DC}
+  .tag.show{background:#DEE5F5}
+  footer{text-align:center; font-size:12px; opacity:.6; padding:0 20px 40px;}
+
+  .section{max-width:760px; margin:0 auto 34px; padding:0 16px;}
+  .sec-title{font-family:'Jua',sans-serif; font-size:20px; margin:6px 0 12px; text-align:center;}
+  .panel{background:#fff; border:1.5px solid rgba(51,64,78,.25); border-radius:14px; padding:14px 16px;}
+  .panel + .panel{margin-top:10px}
+  .panel h4{font-family:'Jua',sans-serif; font-weight:400; font-size:15px; margin-bottom:8px; color:var(--chip)}
+  .check-list{display:grid; grid-template-columns:1fr 1fr; gap:6px 14px;}
+  @media (max-width:520px){.check-list{grid-template-columns:1fr}}
+  .check-list label{display:flex; gap:8px; align-items:flex-start; font-size:13.5px; cursor:pointer; padding:3px 0;}
+  .check-list input{margin-top:3px; width:16px; height:16px; accent-color:var(--chip); flex:none;}
+  .check-list input:checked + span{opacity:.45; text-decoration:line-through;}
+  .note-list{list-style:none;}
+  .note-list li{font-size:13.5px; padding:6px 0 6px 24px; position:relative; border-bottom:1px dashed rgba(51,64,78,.15);}
+  .note-list li:last-child{border-bottom:none}
+  .note-list li::before{content:attr(data-ico); position:absolute; left:0; top:6px;}
+  .note-list b{color:var(--chip)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏰 디즈니랜드 하루 동선</h1>
+  <div class="sub">11:00 입장 · 도시락 지참 · 5세 아이 겁쟁이 모드 · 라이드 10곳 + 야간쇼</div>
+  <div class="badge-row">
+    <span class="badge">🚝 모노레일로 입장</span>
+    <span class="badge">⚡ LL 멀티패스 4회</span>
+    <span class="badge">🍱 점심 도시락</span>
+    <span class="badge">🍽️ 저녁 리버 벨 테라스</span>
+    <span class="badge">🎆 퍼레이드 + 불꽃놀이</span>
+  </div>
+</header>
+
+<div class="legend">
+  <span><span class="dot ll"></span>Lightning Lane</span>
+  <span><span class="dot sb"></span>스탠바이</span>
+  <span><span class="dot eat"></span>식사·휴식</span>
+  <span><span class="rail-key"></span>🚂 기차 이동</span>
+  <span><span class="rail-key mono"></span>🚝 모노레일</span>
+</div>
+
+<div class="map-wrap">
+<svg viewBox="0 0 800 1000" role="img" aria-label="디즈니랜드 파크 동선 지도 (공식 앱 지도 배치 기준)">
+  <!-- 바깥 잔디 -->
+  <rect x="0" y="0" width="800" height="1000" rx="18" fill="var(--lawn)"/>
+
+  <!-- 파크 내부 (철길 안쪽) -->
+  <path d="M470 205
+           C 615 210 745 335 757 555
+           C 765 765 645 875 470 898
+           C 300 880 148 765 137 555
+           C 130 355 305 200 470 205 Z"
+        fill="var(--park)"/>
+
+  <!-- ─── 랜드: 실제 앱 지도의 배치·형태를 따라 그린 구역 ─── -->
+
+  <!-- 갤럭시스 엣지 (북서쪽 바위 지형) -->
+  <path d="M158 430 Q160 355 240 335 Q315 325 342 385 Q355 445 320 490 Q255 520 195 498 Q160 475 158 430 Z"
+        fill="var(--galaxy)" opacity=".95"/>
+  <text x="248" y="318" text-anchor="middle" font-size="15" fill="#5c554a" font-family="Jua">갤럭시스 엣지</text>
+
+  <!-- 툰타운 (철길 북쪽 너머) -->
+  <path d="M398 305 Q392 245 470 235 Q560 228 608 262 Q625 300 600 330 Q540 355 470 350 Q412 342 398 305 Z"
+        fill="var(--toon)" opacity=".95"/>
+  <text x="502" y="225" text-anchor="middle" font-size="15" fill="#8a7417" font-family="Jua">툰타운</text>
+
+  <!-- 판타지랜드 (성 뒤 안뜰, 북쪽으로 스몰월드까지) -->
+  <path d="M382 585 Q365 500 400 445 Q435 400 470 398 Q540 400 568 460 Q585 530 560 585 Q520 615 470 615 Q415 610 382 585 Z"
+        fill="var(--fanta)" opacity=".95"/>
+  <text x="420" y="440" text-anchor="middle" font-size="15" fill="#a4536b" font-family="Jua">판타지랜드</text>
+
+  <!-- 스몰월드 (판타지랜드 북쪽 끝 흰 파사드) -->
+  <g transform="translate(475 380)">
+    <ellipse cx="0" cy="18" rx="52" ry="12" fill="var(--water)" opacity=".85"/>
+    <path d="M-40 6 L-40 -12 L-28 -12 L-24 -26 L-20 -12 L-6 -12 L0 -32 L6 -12 L20 -12 L24 -26 L28 -12 L40 -12 L40 6 Z"
+          fill="#fff" stroke="var(--ink)" stroke-width="1.5"/>
+  </g>
+
+  <!-- 투모로우랜드 (동쪽) -->
+  <path d="M545 640 Q560 605 630 600 Q715 600 738 665 Q750 740 685 785 Q605 810 555 770 Q525 715 545 640 Z"
+        fill="var(--tomo)" opacity=".95"/>
+  <text x="648" y="760" text-anchor="middle" font-size="15" fill="#4a6b8c" font-family="Jua">투모로우랜드</text>
+
+  <!-- 니모 라군 (마터호른 동쪽, 투모로우랜드 북쪽) -->
+  <path d="M660 545 Q655 512 700 505 Q745 505 748 540 Q745 570 700 573 Q665 570 660 545 Z" fill="var(--water)"/>
+
+  <!-- 마터호른 -->
+  <g transform="translate(628 560)">
+    <path d="M-24 18 L-2 -30 L7 -10 L14 -19 L26 18 Z" fill="#fff" stroke="var(--ink)" stroke-width="2"/>
+    <path d="M-2 -30 L2 -20 L-6 -14 Z" fill="#dfe8ee"/>
+  </g>
+  <text x="628" y="596" text-anchor="middle" font-size="11" fill="#5c554a" font-family="Jua">마터호른</text>
+
+  <!-- 프론티어랜드 + 리버스 오브 아메리카 (섬을 감싸는 강) -->
+  <path d="M198 470 Q135 505 128 590 Q125 680 195 735 Q265 770 315 730 Q340 690 315 650 Q345 585 322 528 Q285 470 198 470 Z"
+        fill="var(--water)"/>
+  <!-- 톰소여 섬 -->
+  <path d="M205 530 Q245 515 272 555 Q290 605 268 660 Q240 700 205 685 Q172 650 172 595 Q175 550 205 530 Z"
+        fill="var(--park)"/>
+  <text x="222" y="608" text-anchor="middle" font-size="10" fill="#5f7247" font-family="Jua">톰소여 섬</text>
+  <text x="300" y="452" text-anchor="middle" font-size="15" fill="#8c6a2e" font-family="Jua">프론티어랜드</text>
+
+  <!-- 빅썬더 산 (강 동쪽 기슭) -->
+  <g transform="translate(318 512)">
+    <path d="M-22 16 L-8 -18 L0 -4 L10 -22 L24 16 Z" fill="#C97F4E" stroke="var(--ink)" stroke-width="1.5"/>
+  </g>
+
+  <!-- 뉴올리언스 스퀘어 (강 남쪽 기슭) -->
+  <path d="M168 742 Q175 712 240 705 Q305 705 322 735 Q325 762 290 772 Q215 780 178 765 Q168 755 168 742 Z"
+        fill="var(--nos)" opacity=".95"/>
+  <text x="238" y="800" text-anchor="middle" font-size="13" fill="#6b5380" font-family="Jua">뉴올리언스 스퀘어</text>
+
+  <!-- 어드벤처랜드 -->
+  <path d="M328 785 Q335 752 395 745 Q450 745 458 775 Q455 800 405 808 Q345 808 328 785 Z"
+        fill="var(--adv)" opacity=".95"/>
+  <text x="395" y="830" text-anchor="middle" font-size="13" fill="#3f6b40" font-family="Jua">어드벤처랜드</text>
+
+  <!-- 허브 + 메인 스트리트 -->
+  <circle cx="470" cy="690" r="34" fill="var(--path)"/>
+  <rect x="450" y="710" width="40" height="200" rx="14" fill="var(--path)"/>
+  <text x="500" y="868" font-size="13" fill="#7d6f4e" font-family="Jua">메인 스트리트</text>
+
+  <!-- 성 -->
+  <g transform="translate(470 640)">
+    <path d="M-24 16 L-24 -7 L-17 -7 L-17 -20 L-9 -7 L-4 -7 L-4 -27 L4 -27 L4 -7 L9 -7 L17 -20 L17 -7 L24 -7 L24 16 Z"
+          fill="#fff" stroke="var(--ink)" stroke-width="2"/>
+    <path d="M-4 -27 L0 -40 L4 -27" fill="#F09A8D" stroke="var(--ink)" stroke-width="2"/>
+  </g>
+
+  <!-- ─── 철길: 파크 외곽 전체 순환 (침목 표현) ─── -->
+  <path id="berm" d="M470 205
+           C 615 210 745 335 757 555
+           C 765 765 645 875 470 898
+           C 300 880 148 765 137 555
+           C 130 355 305 200 470 205 Z"
+        fill="none" stroke="var(--rail)" stroke-width="4" opacity=".5"/>
+  <path d="M470 205
+           C 615 210 745 335 757 555
+           C 765 765 645 875 470 898
+           C 300 880 148 765 137 555
+           C 130 355 305 200 470 205 Z"
+        fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="2 10" opacity=".6"/>
+
+  <!-- ─── 기차 탑승 구간: 툰타운역 → (시계방향) → 뉴올리언스 스퀘어역 ─── -->
+  <path id="train-ride" d="M562 330 C 680 360 748 430 756 560 C 762 760 645 872 470 896 C 355 885 265 830 225 762"
+        fill="none" stroke="var(--rail)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M562 330 C 680 360 748 430 756 560 C 762 760 645 872 470 896 C 355 885 265 830 225 762"
+        fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="3 12" stroke-linecap="round"/>
+
+  <!-- 달리는 기차 -->
+  <text font-size="22" text-anchor="middle" dominant-baseline="central">🚂
+    <animateMotion dur="9s" repeatCount="indefinite" rotate="0"
+      path="M562 330 C 680 360 748 430 756 560 C 762 760 645 872 470 896 C 355 885 265 830 225 762"/>
+  </text>
+
+  <!-- 역 표시 -->
+  <g transform="translate(562 330)">
+    <rect x="-9" y="-9" width="18" height="18" rx="3" fill="#fff" stroke="var(--rail)" stroke-width="2.5"/>
+    <rect x="-5" y="-5" width="10" height="6" fill="var(--rail)"/>
+  </g>
+  <text x="592" y="352" font-size="11" fill="var(--rail)" font-family="Jua">툰타운역 승차</text>
+  <g transform="translate(225 762)">
+    <rect x="-9" y="-9" width="18" height="18" rx="3" fill="#fff" stroke="var(--rail)" stroke-width="2.5"/>
+    <rect x="-5" y="-5" width="10" height="6" fill="var(--rail)"/>
+  </g>
+  <text x="212" y="790" font-size="11" fill="var(--rail)" font-family="Jua">뉴올리언스 스퀘어역 하차</text>
+
+  <!-- ─── 모노레일: 다운타운 디즈니역 → 투모로우랜드역 (하늘 위 궤도) ─── -->
+  <text x="140" y="985" font-size="13" fill="#5c6b7d" font-family="Jua">다운타운 디즈니</text>
+  <path id="monorail" d="M165 928 C 320 975 520 950 622 878 C 702 815 716 700 702 610"
+        fill="none" stroke="#4A6B8C" stroke-width="7" stroke-linecap="round" opacity=".9"/>
+  <path d="M165 928 C 320 975 520 950 622 878 C 702 815 716 700 702 610"
+        fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+  <text font-size="20" text-anchor="middle" dominant-baseline="central">🚝
+    <animateMotion dur="7s" repeatCount="indefinite"
+      path="M165 928 C 320 975 520 950 622 878 C 702 815 716 700 702 610"/>
+  </text>
+  <g transform="translate(165 928)">
+    <rect x="-9" y="-9" width="18" height="18" rx="3" fill="#fff" stroke="#4A6B8C" stroke-width="2.5"/>
+    <rect x="-5" y="-5" width="10" height="6" fill="#4A6B8C"/>
+  </g>
+  <g transform="translate(702 610)">
+    <rect x="-9" y="-9" width="18" height="18" rx="3" fill="#fff" stroke="#4A6B8C" stroke-width="2.5"/>
+    <rect x="-5" y="-5" width="10" height="6" fill="#4A6B8C"/>
+  </g>
+  <text x="712" y="638" font-size="11" fill="#4A6B8C" font-family="Jua">투모로우랜드역 하차</text>
+
+  <!-- ─── 도보 동선 ─── -->
+  <!-- 투모로우랜드역 하차 → 니모 → 점심 → 피터팬 → 덤보 → 스몰월드 → 툰타운 → 런어웨이 → 툰타운역 -->
+  <path id="route" d="M702 605 Q700 570 696 548 Q672 520 645 505 Q540 545 450 578 Q425 572 408 563 Q432 470 470 400 Q492 350 512 305 Q490 292 468 288 Q515 305 558 326"
+        fill="none" stroke="var(--chip)" stroke-width="3.5" stroke-linecap="round" opacity=".9"/>
+  <!-- 뉴올리언스 스퀘어역 → 강변 북쪽 빅썬더 -->
+  <path class="walk" d="M228 755 Q290 650 315 522" fill="none" stroke="var(--chip)" stroke-width="3.5" stroke-linecap="round" opacity=".9"/>
+  <!-- 빅썬더 → 해적 → 리버 벨 테라스 -->
+  <path class="walk" d="M315 522 Q300 640 252 728 Q285 742 322 740" fill="none" stroke="var(--chip)" stroke-width="3.5" stroke-linecap="round" opacity=".9"/>
+  <!-- 리버 벨 → 앨리스 → 퍼레이드 자리 -->
+  <path class="walk" d="M328 738 Q440 660 552 590 Q515 700 472 786" fill="none" stroke="var(--chip)" stroke-width="3.5" stroke-linecap="round" opacity=".9"/>
+</svg>
+</div>
+
+<div class="timeline" id="timeline">
+  <div class="tl-title">⏱ 시간대별 일정</div>
+</div>
+
+<div class="section">
+  <div class="sec-title">🚗 주차 & 입장 가이드</div>
+  <div class="panel">
+    <h4>Mickey & Friends 주차 빌딩 → 모노레일 입장</h4>
+    <ul class="note-list">
+      <li data-ico="🅿️">주차 후 트램 말고 <b>보행로로 다운타운 디즈니 서쪽 입구까지 도보 7~10분</b> — 모노레일역을 자연스럽게 지나는 직선 동선. 토이스토리 주차장은 정문 쪽에 내려줘서 이 동선엔 비추.</li>
+      <li data-ico="🔍">보안검색(가방 검사)은 <b>다운타운 디즈니 입구</b>에서 진행 — 도시락 가방은 꺼내 보여주기 쉽게 포장.</li>
+      <li data-ico="🎫">모노레일역 플랫폼에서 <b>티켓 + 파크 예약 스캔 = 파크 입장</b>. 첫 입장 시 얼굴 사진 연동도 이 자리에서. 스캔 직후 앱에서 LL 멀티패스 활성화 → 피터팬 예약!</li>
+      <li data-ico="👶">유모차는 접어서 탑승. 투모로우랜드역 하차하면 니모 라군이 바로 앞.</li>
+      <li data-ico="🏰">성의 첫 대면은 저녁으로 — 17:45 식사 후 허브를 지나며 조명 켜진 성 감상, 시티홀에서 <b>First Visit 배지</b>(무료) 받기.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <div class="sec-title">✅ 출발 전 준비물</div>
+  <div class="panel">
+    <h4>기본</h4>
+    <div class="check-list">
+      <label><input type="checkbox"><span>디즈니랜드 앱 설치 + 가족 전원 티켓 연동</span></label>
+      <label><input type="checkbox"><span>파크 예약 (Disneyland Park) + LL 멀티패스 사전 구매</span></label>
+      <label><input type="checkbox"><span>리버 벨 테라스 17:45 저녁 예약 (60일 전 오픈)</span></label>
+      <label><input type="checkbox"><span>유모차 + 식별용 리본/스카프 (주차 구역에서 찾기용)</span></label>
+      <label><input type="checkbox"><span>돗자리 (퍼레이드 자리잡기)</span></label>
+      <label><input type="checkbox"><span>도시락 + 간식 (유리 용기 ✕, 아이스팩·소프트 쿨러백 ○)</span></label>
+      <label><input type="checkbox"><span>아이 최애 캐릭터 시그니처 포즈 연습</span></label>
+      <label><input type="checkbox"><span>아이 키 102cm 확인 (빅썬더 신장 제한)</span></label>
+    </div>
+  </div>
+  <div class="panel">
+    <h4>한여름 대비</h4>
+    <div class="check-list">
+      <label><input type="checkbox"><span>얼린 물병 (반입 가능, 녹으며 종일 찬물)</span></label>
+      <label><input type="checkbox"><span>전해질 파우더 스틱 (Liquid I.V. 등)</span></label>
+      <label><input type="checkbox"><span>미스트 분무형 휴대 선풍기 + 쿨링 타월</span></label>
+      <label><input type="checkbox"><span>챙 넓고 목 뒤 가리는 아이 모자</span></label>
+      <label><input type="checkbox"><span>선크림 (점심·툰타운 휴식 때 2회 덧바르기)</span></label>
+      <label><input type="checkbox"><span>어린이 귀마개 — 21:30 불꽃놀이 소음 대비</span></label>
+      <label><input type="checkbox"><span>아이 옷/손목밴드에 부모 연락처 표기</span></label>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="sec-title">⚠️ 현장 유의사항</div>
+  <div class="panel">
+    <ul class="note-list">
+      <li data-ico="📏"><b>빅썬더 102cm 미달 시 Rider Switch</b> — 입구 캐스트에게 요청하면 부모가 줄 다시 안 서고 교대 탑승 가능. 아이가 무서워해도 같은 방법.</li>
+      <li data-ico="🧒"><b>미아 대비</b> — "길 잃으면 이름표 단 캐스트 멤버에게" 사전 연습, 성 앞 등 만날 장소 지정.</li>
+      <li data-ico="💧"><b>얼음물은 무료</b> — 퀵서비스 매장 어디서든 요청 가능. 생수 구매는 비쌈.</li>
+      <li data-ico="❄️"><b>더위 비상 피난처</b> — 베이비 케어 센터(메인 스트리트 끝, 에어컨·수유·전자레인지), 링컨관, 메인 스트리트 시네마.</li>
+      <li data-ico="⚡"><b>LL 리턴 타임 유동 대응</b> — 피터팬 LL이 13시보다 늦으면 덤보·스몰월드 먼저, 윈도우에 맞춰 끼워넣기. 반경 5분이라 손실 없음.</li>
+      <li data-ico="🌙"><b>니모는 해질 무렵 조기 마감</b> — 오전 탑승 필수, 미루면 못 탐.</li>
+      <li data-ico="🎆"><b>야간쇼는 8/20까지 연장</b> — Paint the Night·Wondrous Journeys 모두 8월 20일까지. 화~목 방문이 확실히 덜 붐빔.</li>
+      <li data-ico="✈️"><b>시차 고려</b> — 밤 10시까지 버티는 일정이라 시차 적응 2~3일차 이후, 여행 중반에 배치 추천.</li>
+    </ul>
+  </div>
+</div>
+
+<footer>
+  ⚡ 표시는 Lightning Lane 멀티패스 사용 · 탑승 태그 직후 앱에서 다음 LL 예약 잊지 마세요<br>
+  공식 앱 지도의 배치·형태를 따라 그린 안내용 약도입니다
+</footer>
+
+<script>
+const stops = [
+  {n:1,  x:165, y:928, t:"11:00", type:"show", title:"다운타운 디즈니역 — 모노레일 승차 🚝", desc:"티켓 스캔이 곧 파크 입장! 플랫폼에서 LL 멀티패스 활성화 → 피터팬 첫 예약. 유모차는 접어서 탑승, 마터호른을 내려다보며 하늘로 입장."},
+  {n:2,  x:695, y:545, t:"11:15", type:"sb", title:"니모 잠수함", desc:"투모로우랜드역 하차하면 바로 앞이 니모 라군. 조기 마감 라이드라 오전 필수. 30~45분."},
+  {n:3,  x:643, y:503, t:"12:15", type:"eat", title:"도시락 점심 🍱", desc:"니모 라군 바로 옆 마터호른 잔디 벤치. 이동 1분, 그늘에서 재정비."},
+  {n:4,  x:448, y:578, t:"13:00", type:"ll", title:"피터팬의 비행 ⚡", desc:"판타지랜드 성 안뜰. LL 사용, 줄에서 바로 런어웨이 레일웨이 다음 예약!"},
+  {n:5,  x:406, y:562, t:"13:30", type:"sb", title:"덤보", desc:"바로 옆. 아이가 직접 높이 조절하는 판타지랜드 클래식. 20~30분."},
+  {n:6,  x:470, y:400, t:"14:00", type:"sb", title:"잇츠 어 스몰 월드", desc:"판타지랜드 북쪽 끝 흰 파사드. 가장 더운 시간대 에어컨 보트 쿨링. 내려서 바로 뒤가 툰타운."},
+  {n:7,  x:513, y:303, t:"14:30", type:"eat", title:"툰타운 놀이터 휴식", desc:"CenTOONial Park 자유놀이 + 유모차 낮잠 타임. 부모는 그늘에서 쉬기."},
+  {n:8,  x:466, y:287, t:"15:15", type:"ll", title:"미키와 미니의 런어웨이 ⚡", desc:"LL 사용. 겁쟁이도 OK인 최신 인기 기구. 줄에서 빅썬더 예약!"},
+  {n:9,  x:562, y:330, t:"15:50", type:"show", title:"디즈니랜드 철도 🚂", desc:"툰타운역 승차 → 지도의 굵은 철길을 따라 시계방향(투모로우랜드·메인 스트리트 경유)으로 뉴올리언스 스퀘어역 하차. 15~20분, 그랜드캐니언 디오라마 통과."},
+  {n:10, x:315, y:518, t:"16:20", type:"ll", title:"빅썬더 마운틴 ⚡", desc:"역에서 강변 따라 북쪽으로 도보 3~4분. 리버스 오브 아메리카 동쪽 기슭의 광산 열차."},
+  {n:11, x:250, y:730, t:"16:50", type:"sb", title:"캐리비안의 해적", desc:"강변 따라 다시 남쪽 뉴올리언스 스퀘어로. 실내 보트로 더위 피하기, 어두운 구간은 안아주세요. 25~35분."},
+  {n:12, x:326, y:740, t:"17:45", type:"eat", title:"저녁 — 리버 벨 테라스 🍽️", desc:"해적 출구에서 도보 2분, 프론티어랜드 입구. 남부식 정찬(17:45 사전 예약, 판타스믹 패키지 없음)."},
+  {n:13, x:554, y:588, t:"19:00", type:"sb", title:"이상한 나라의 앨리스", desc:"판타지랜드 동쪽, 마터호른 옆. 저녁 식사 시간대 대기 감소 구간. 25~35분."},
+  {n:14, x:470, y:790, t:"19:45", type:"show", title:"퍼레이드 자리 → 야간쇼 🎆", desc:"메인 스트리트 돗자리 자리잡기 → 20:45 Paint the Night → 21:30 불꽃놀이로 피날레!"},
+];
+
+const svg = document.querySelector('svg');
+const tl  = document.getElementById('timeline');
+const colors = {ll:'var(--gold)', sb:'#ffffff', eat:'#F09A8D', show:'var(--chip)'};
+const txtCol = {ll:'#33404E', sb:'#33404E', eat:'#33404E', show:'#ffffff'};
+const tagName = {ll:'⚡ Lightning Lane', sb:'🚶 스탠바이', eat:'🍽️ 식사·휴식', show:'📍 이동·쇼'};
+
+stops.forEach(s=>{
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','stop'); g.dataset.n = s.n;
+  g.innerHTML = `
+    <circle class="halo" cx="${s.x}" cy="${s.y}" r="24" fill="none" stroke="var(--chip)" stroke-width="2.5" stroke-dasharray="3 4"/>
+    <circle class="core" cx="${s.x}" cy="${s.y}" r="15" fill="${colors[s.type]}" stroke="var(--ink)" stroke-width="2"/>
+    <text x="${s.x}" y="${s.y+5}" text-anchor="middle" font-family="Jua" font-size="14" fill="${txtCol[s.type]}" pointer-events="none">${s.n}</text>
+    <g transform="translate(${s.x},${s.y-24})" pointer-events="none">
+      <rect x="-26" y="-15" width="52" height="19" rx="9" fill="var(--ink)"/>
+      <text x="0" y="-1" text-anchor="middle" font-family="Jua" font-size="12" fill="#fff">${s.t}</text>
+    </g>`;
+  svg.appendChild(g);
+
+  const card = document.createElement('div');
+  card.className = `card ${s.type}`; card.dataset.n = s.n; card.id = `card-${s.n}`;
+  card.innerHTML = `
+    <div class="num">${s.n}</div>
+    <div class="body">
+      <span class="time">${s.t}</span><span class="tag ${s.type}">${tagName[s.type]}</span>
+      <h3>${s.title}</h3>
+      <p>${s.desc}</p>
+    </div>`;
+  tl.appendChild(card);
+});
+
+function activate(n, scrollCard){
+  document.querySelectorAll('.stop,.card').forEach(el=>{
+    el.classList.toggle('active', el.dataset.n == n);
+  });
+  if(scrollCard){
+    document.getElementById(`card-${n}`).scrollIntoView({behavior:'smooth', block:'center'});
+  }
+}
+svg.addEventListener('click', e=>{
+  const g = e.target.closest('.stop');
+  if(g) activate(g.dataset.n, true);
+});
+tl.addEventListener('click', e=>{
+  const c = e.target.closest('.card');
+  if(c) activate(c.dataset.n, false);
+});
+</script>
+</body>
+</html>

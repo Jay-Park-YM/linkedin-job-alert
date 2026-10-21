@@ -8,6 +8,7 @@ import re
 import logging
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import quote
 
 import requests
 from bs4 import BeautifulSoup
@@ -15,10 +16,13 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-SEARCH_BASE_URL = (
+SEARCH_URL_TEMPLATE = (
     "https://www.linkedin.com/jobs/search/"
-    "?keywords=l%27oreal&location=South%20Korea&position=1&pageNum=0"
+    "?keywords={keyword}&location=South%20Korea&position=1&pageNum=0"
 )
+
+# One LinkedIn keyword search per company.
+SEARCH_KEYWORDS = ["l'oreal", "lvmh", "chanel", "hermes"]
 
 HEADERS = {
     "User-Agent": (
@@ -30,6 +34,21 @@ HEADERS = {
 
 SEEN_JOBS_PATH = Path(__file__).parent / "seen_jobs.json"
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+
+# Keyword search matches the whole posting text, so other companies (e.g. CJ
+# Olive Young) that merely mention a target brand show up. Keep only real
+# postings by matching the parsed company name against these.
+COMPANY_KEYWORDS = (
+    "l'oréal", "l'oreal", "loreal", "로레알",
+    "lvmh", "louis vuitton", "루이비통", "루이 비통",
+    "chanel", "샤넬",
+    "hermès", "hermes", "에르메스",
+)
+
+
+def is_target_company(company: str) -> bool:
+    normalized = company.casefold()
+    return any(kw in normalized for kw in COMPANY_KEYWORDS)
 
 
 def load_seen_jobs() -> set:
@@ -83,36 +102,39 @@ def parse_cards(html: str) -> list[dict]:
 
 
 def fetch_jobs() -> list[dict]:
-    """Fetch all public LinkedIn job listings with pagination."""
-    log.info("Fetching LinkedIn jobs...")
+    """Fetch public LinkedIn job listings for every search keyword."""
     all_jobs = []
     seen_ids = set()
-    start = 0
 
-    while True:
-        url = f"{SEARCH_BASE_URL}&start={start}"
-        resp = requests.get(url, headers=HEADERS, timeout=30)
-        resp.raise_for_status()
+    for keyword in SEARCH_KEYWORDS:
+        log.info("Fetching LinkedIn jobs for keyword=%s...", keyword)
+        base_url = SEARCH_URL_TEMPLATE.format(keyword=quote(keyword))
+        start = 0
 
-        page_jobs = parse_cards(resp.text)
-        if not page_jobs:
-            break
+        while True:
+            url = f"{base_url}&start={start}"
+            resp = requests.get(url, headers=HEADERS, timeout=30)
+            resp.raise_for_status()
 
-        new_on_page = 0
-        for job in page_jobs:
-            if job["id"] not in seen_ids:
-                seen_ids.add(job["id"])
-                all_jobs.append(job)
-                new_on_page += 1
+            page_jobs = parse_cards(resp.text)
+            if not page_jobs:
+                break
 
-        log.info("Page start=%d: %d job(s)", start, new_on_page)
+            new_on_page = 0
+            for job in page_jobs:
+                if job["id"] not in seen_ids:
+                    seen_ids.add(job["id"])
+                    all_jobs.append(job)
+                    new_on_page += 1
 
-        if new_on_page == 0:
-            break
+            log.info("  keyword=%s start=%d: %d new job(s)", keyword, start, new_on_page)
 
-        start += 25
+            if new_on_page == 0:
+                break
 
-    log.info("Found %d job(s) total", len(all_jobs))
+            start += 25
+
+    log.info("Found %d job(s) total across %d keyword(s)", len(all_jobs), len(SEARCH_KEYWORDS))
     return all_jobs
 
 
@@ -131,7 +153,7 @@ def send_slack_notification(new_jobs: list[dict]):
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": f"L'Oréal Korea 새 채용공고 ({today})",
+                "text": f"럭셔리 브랜드 새 채용공고 ({today})",
             },
         },
         {"type": "divider"},
@@ -163,6 +185,17 @@ def main():
 
     if not jobs:
         log.info("No jobs found in search results")
+        return
+
+    # Drop postings from other companies that only mention L'Oréal in their text.
+    target_jobs = [j for j in jobs if is_target_company(j["company"])]
+    dropped = len(jobs) - len(target_jobs)
+    if dropped:
+        log.info("Filtered out %d non-L'Oréal job(s)", dropped)
+    jobs = target_jobs
+
+    if not jobs:
+        log.info("No L'Oréal jobs in search results")
         return
 
     new_jobs = filter_new_jobs(jobs, seen)
